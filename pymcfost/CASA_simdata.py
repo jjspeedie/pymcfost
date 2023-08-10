@@ -38,10 +38,14 @@ def pseudo_CASA_simdata(model,i=0,iaz=0,iTrans=None,simu_name = "pseudo_casa",be
     if beam is not None:
         bmaj = beam
         bmin = beam
-        bpa = 0
+        bpa = 0.
 
     if bmaj is None:
-        raise Exception("Missing beam")
+        # raise Exception("Missing beam")
+        print('Missing beam, will keep as Jy/pixel, and also will not add noise.')
+        bmaj = 0.
+        bmin = 0.
+        bpa = 0.
 
     # -- Flux setup : we want Jy/pixel first
     if is_image:
@@ -103,7 +107,12 @@ def pseudo_CASA_simdata(model,i=0,iaz=0,iTrans=None,simu_name = "pseudo_casa",be
         hdr["CUNIT3"] = "m/s"
 
     hdr["RESTFREQ"] = model.freq[iTrans]  # Hz
-    hdr["BUNIT"] = "JY/BEAM"
+
+    if bmaj == 0.:
+        hdr["BUNIT"] = "JY/PIXEL"
+    else:
+        hdr["BUNIT"] = "JY/BEAM"
+
     hdr["BTYPE"] = "Intensity"
     hdr["BMAJ"] = bmaj/3600.
     hdr["BMIN"] = bmin/3600.
@@ -113,37 +122,39 @@ def pseudo_CASA_simdata(model,i=0,iaz=0,iTrans=None,simu_name = "pseudo_casa",be
     if Delta_v is not None:
         image = model._spectral_convolve(image, Delta_v)
 
-    print(f"Spatial convolution at {bmaj} x {bmin}")
-    #-- Convolution by beam
-    sigma_x = bmin / model.pixelscale * FWHM_to_sigma  # in pixels
-    sigma_y = bmaj / model.pixelscale * FWHM_to_sigma  # in pixels
-    beam = Gaussian2DKernel(sigma_x, sigma_y, bpa * np.pi / 180)
+    if bmaj != 0.:
 
-    if image.ndim == 2:
-        image = convolve_fft(image, beam)
-    else:
-        for iv in range(image.shape[0]):
-            image[iv,:,:] = convolve_fft(image[iv,:,:], beam)
+        print(f"Spatial convolution at {bmaj} x {bmin}")
+        #-- Convolution by beam
+        sigma_x = bmin / model.pixelscale * FWHM_to_sigma  # in pixels
+        sigma_y = bmaj / model.pixelscale * FWHM_to_sigma  # in pixels
+        beam = Gaussian2DKernel(sigma_x, sigma_y, bpa * np.pi / 180)
 
-    #-- Jy/pixel to Jy/beam
-    beam_area = bmin * bmaj * np.pi / (4.0 * np.log(2.0))
-    pix_area = model.pixelscale**2
-    image *= beam_area/pix_area
+        if image.ndim == 2:
+            image = convolve_fft(image, beam)
+        else:
+            for iv in range(image.shape[0]):
+                image[iv,:,:] = convolve_fft(image[iv,:,:], beam)
 
-    print(f"Peak flux is {np.max(image)} Jy/beam")
+        #-- Jy/pixel to Jy/beam
+        beam_area = bmin * bmaj * np.pi / (4.0 * np.log(2.0))
+        pix_area = model.pixelscale**2
+        image *= beam_area/pix_area
 
-	#-- This is for testing purpose only so far: this needs to be updated and to come before
-	#--  - compute the scale factor in 1 channel once,
-	#--  - then add noise before spatial and spectral convolution so we do not convolve twice
-    if rms > 0.0:
-        noise = np.random.randn(image.size).reshape(image.shape)
-        for iv in range(image.shape[0]):
-            noise[iv,:,:] = convolve_fft(noise[iv,:,:], beam)
-        if Delta_v is not None:
-            noise =  model._spectral_convolve(noise, Delta_v)
-        #print(np.std(noise), beam_area/pix_area)
-        noise *= rms / np.std(noise)
-        image += noise
+        print(f"Peak flux is {np.max(image)} Jy/beam")
+
+    	#-- This is for testing purpose only so far: this needs to be updated and to come before
+    	#--  - compute the scale factor in 1 channel once,
+    	#--  - then add noise before spatial and spectral convolution so we do not convolve twice
+        if rms > 0.0:
+            noise = np.random.randn(image.size).reshape(image.shape)
+            for iv in range(image.shape[0]):
+                noise[iv,:,:] = convolve_fft(noise[iv,:,:], beam)
+            if Delta_v is not None:
+                noise =  model._spectral_convolve(noise, Delta_v)
+            #print(np.std(noise), beam_area/pix_area)
+            noise *= rms / np.std(noise)
+            image += noise
 
     hdu = fits.PrimaryHDU(image, header=hdr)
     hdul = fits.HDUList(hdu)

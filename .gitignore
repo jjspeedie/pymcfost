@@ -1,0 +1,4 @@
+build/
+dist/
+pymcfost.egg-info/
+pymcfost/__pycache__/
