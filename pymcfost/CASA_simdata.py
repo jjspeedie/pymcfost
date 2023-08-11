@@ -9,7 +9,7 @@ from astropy.io import fits
 from astropy.convolution import Gaussian2DKernel, convolve_fft, convolve
 from scipy.ndimage import convolve1d
 
-def pseudo_CASA_simdata(model,i=0,iaz=0,iTrans=None,simu_name = "pseudo_casa",beam=None,bmaj=None,bmin=None,bpa=None,subtract_cont=False,Delta_v=None, rms=0):
+def pseudo_CASA_simdata(model,i=0,iaz=0,iTrans=None,workdir=None,simu_name="pseudo_casa",beam=None,bmaj=None,bmin=None,bpa=None,subtract_cont=False,Delta_v=None, rms=0):
     """
     Generate a fits file as if it was a CASA simdata output
      - convolve spatially with beam (bmin, bmaj in arsec, bpa in degrees)
@@ -19,10 +19,10 @@ def pseudo_CASA_simdata(model,i=0,iaz=0,iTrans=None,simu_name = "pseudo_casa",be
     Basically generate a CASA fits file with perfect uv coverage and no noise
     """
 
-    workdir = "CASA/"
+    workdir = "CASA/" if None else workdir
     if not os.path.exists(workdir):
         os.mkdir(workdir)
-    _CASA_clean(workdir)
+    # _CASA_clean(workdir)
 
     is_image = isinstance(model, Image)
 
@@ -159,6 +159,7 @@ def pseudo_CASA_simdata(model,i=0,iaz=0,iTrans=None,simu_name = "pseudo_casa",be
     hdu = fits.PrimaryHDU(image, header=hdr)
     hdul = fits.HDUList(hdu)
 
+    print('Saving fits file: ', workdir + simu_name + ".fits")
     hdul.writeto(workdir + simu_name + ".fits", overwrite=True)
 
 #	if rms > 0.0:
